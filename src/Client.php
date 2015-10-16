@@ -284,9 +284,11 @@ class Client
      * @return array|stdClass
      * @throws EtcdException
      */
-    public function rm($key)
+    public function rm($key, $condition = array())
     {
-        $request = $this->guzzleclient->delete($this->buildKeyUri($key));
+        $request = $this->guzzleclient->delete($this->buildKeyUri($key), null, null, array(
+            'query' => $condition
+        ));
         $response = $request->send();
         $body = $response->json();
         
@@ -296,7 +298,7 @@ class Client
         
         return $body;
     }
-    
+
     /**
      * Removes the key if it is directory
      * @param string $key
