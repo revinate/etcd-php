@@ -2,7 +2,7 @@
 
 namespace LinkORB\Component\Etcd;
 
-use Guzzle\Http\Client as GuzzleClient;
+use GuzzleHttp\Client as GuzzleClient;
 use LinkORB\Component\Etcd\Exception\EtcdException;
 use LinkORB\Component\Etcd\Exception\KeyExistsException;
 use LinkORB\Component\Etcd\Exception\KeyNotFoundException;
@@ -31,11 +31,9 @@ class Client
          
         $this->apiversion = $version;
         $this->guzzleclient = new GuzzleClient(
-            $this->server,
             array(
-                'request.options' => array(
-                    'exceptions' => false
-                )
+                'base_uri' => $this->server,
+                'http_errors' => false
             )
         );
     }
@@ -69,10 +67,10 @@ class Client
      */
     private function buildKeyUri($key)
     {
-        if (strpos('/', $key) === false) {
+        if (strpos($key, '/') === false) {
             $key = '/' . $key;
         }
-        $uri = '/' . $this->apiversion . '/keys' . $this->root . $key;
+        $uri = '/' . $this->apiversion . '/keys' . $key;
         return $uri;
     }
 
@@ -84,9 +82,8 @@ class Client
      */
     public function doRequest($uri)
     {
-        $request = $this->guzzleclient->get($uri);
-        $response = $request->send();
-        $data = $response->getBody(true);
+        $response = $this->guzzleclient->get($uri);
+        $data = $response->getBody()->getContents();
         return $data;
     }
 
@@ -105,12 +102,11 @@ class Client
         if ($ttl) {
             $data['ttl'] = $ttl;
         }
-        
-        $request = $this->guzzleclient->put($this->buildKeyUri($key), null, $data, array(
-            'query' => $condition
+        $response = $this->guzzleclient->put($this->buildKeyUri($key), array(
+            'query' => $condition,
+            'form_params' => $data
         ));
-        $response = $request->send();
-        $body = $response->json();
+        $body = json_decode($response->getBody(), true);
         return $body;
     }
 
@@ -130,13 +126,13 @@ class Client
             );
         }
         
-        $request = $this->guzzleclient->get(
+        $response = $this->guzzleclient->get(
             $this->buildKeyUri($key),
-            null,
-            $query
+            array(
+                'query' => $query
+            )
         );
-        $response = $request->send();
-        $body = $response->json();
+        $body = json_decode($response->getBody(), true);
         if (isset($body['errorCode'])) {
             throw new KeyNotFoundException($body['message'], $body['errorCode']);
         }
@@ -200,17 +196,15 @@ class Client
         if ($ttl) {
             $data['ttl'] = $ttl;
         }
-        $request = $this->guzzleclient->put(
+        $response = $this->guzzleclient->put(
             $this->buildKeyUri($key),
-            null,
-            $data,
             array(
-                'query' => array('prevExist' => 'false')
+                'query' => array('prevExist' => 'false'),
+                'form_params' => $data
             )
         );
         
-        $response = $request->send();
-        $body = $response->json();
+        $body = json_decode($response->getBody(), true);
         if (isset($body['errorCode'])) {
             throw new KeyExistsException($body['message'], $body['errorCode']);
         }
@@ -259,18 +253,16 @@ class Client
             'prevExist' => 'true'
         );
         
-        $request = $this->guzzleclient->put(
+        $response = $this->guzzleclient->put(
             $this->buildKeyUri($key),
-            null,
             array(
-                'ttl' => (int) $ttl
-            ),
-            array(
-                'query' => $condition
+                'query' => $condition,
+                'form_params' => array(
+                    'ttl' => (int) $ttl
+                ),
             )
         );
-        $response = $request->send();
-        $body = $response->json();
+        $body = json_decode($response->getBody(), true);
         if (isset($body['errorCode'])) {
             throw new EtcdException($body['message'], $body['errorCode']);
         }
@@ -286,11 +278,10 @@ class Client
      */
     public function rm($key, $condition = array())
     {
-        $request = $this->guzzleclient->delete($this->buildKeyUri($key), null, null, array(
+        $response = $this->guzzleclient->delete($this->buildKeyUri($key), array(
             'query' => $condition
         ));
-        $response = $request->send();
-        $body = $response->json();
+        $body = json_decode($response->getBody(), true);
         
         if (isset($body['errorCode'])) {
             throw new EtcdException($body['message'], $body['errorCode']);
@@ -313,16 +304,13 @@ class Client
         if ($recursive === true) {
             $query['recursive'] = 'true';
         }
-        $request = $this->guzzleclient->delete(
+        $response = $this->guzzleclient->delete(
             $this->buildKeyUri($key),
-            null,
-            null,
             array(
                 'query' => $query
             )
         );
-        $response = $request->send();
-        $body = $response->json();
+        $body = json_decode($response->getBody(), true);
         if (isset($body['errorCode'])) {
             throw new EtcdException($body['message'], $body['errorCode']);
         }
@@ -342,15 +330,13 @@ class Client
         if ($recursive === true) {
             $query['recursive'] = 'true';
         }
-        $request = $this->guzzleclient->get(
+        $response = $this->guzzleclient->get(
             $this->buildKeyUri($key),
-            null,
             array(
                 'query' => $query
             )
         );
-        $response = $request->send();
-        $body = $response->json();
+        $body = json_decode($response->getBody(), true);
         if (isset($body['errorCode'])) {
             throw new KeyNotFoundException($body['message'], $body['errorCode']);
         }
